@@ -69,6 +69,7 @@ STATISTIC(numCrossRCs, "Number of cross class joins performed");
 STATISTIC(numCommutes, "Number of instruction commuting performed");
 STATISTIC(numExtends, "Number of copies extended");
 STATISTIC(NumReMats, "Number of instructions re-materialized");
+STATISTIC(NumReMatsPrevented, "Number of instruction rematerialization prevented by `shouldReMaterializeTrivialRegDef` hook");
 STATISTIC(NumInflated, "Number of register classes inflated");
 STATISTIC(NumLaneConflicts, "Number of dead lane conflicts tested");
 STATISTIC(NumLaneResolves, "Number of dead lane conflicts resolved");
@@ -1315,6 +1316,13 @@ bool RegisterCoalescer::reMaterializeTrivialDef(const CoalescerPair &CP,
     return false;
   if (ValNo->isPHIDef() || ValNo->isUnused())
     return false;
+
+  if (!TII->shouldReMaterializeTrivialRegDef(CopyMI, DstReg, SrcReg)) {
+    LLVM_DEBUG(dbgs() << "Remat prevented: " << CopyIdx << "\t" << *CopyMI);
+    ++NumReMatsPrevented;
+    return false;
+  }
+  
   MachineInstr *DefMI = LIS->getInstructionFromIndex(ValNo->def);
   if (!DefMI)
     return false;
