@@ -1029,6 +1029,31 @@ bool AArch64InstrInfo::isAsCheapAsAMove(const MachineInstr &MI) const {
   }
 }
 
+bool AArch64InstrInfo::shouldReMaterializeTrivialRegDef(
+    const MachineFunction *MF, const MachineInstr &CopyMI,
+    const Register &DestReg, const Register &SrcReg,
+    const LiveIntervals *LIS) const {
+  assert(!SrcReg.isPhysical() && "Cannot rematerialize a physical register");
+
+  const MachineRegisterInfo &MRI = MF->getRegInfo();
+
+  // SrcReg is virtual thus it is bound to a single value.
+  // Therefore, if there is exactly one non-debug use of
+  // that value, we should rematerialize.
+  //
+  // As a specific case, function calls can avoid
+  // redundant double copy. For example, SelectionDAG lowers
+  // multiple move immediate in a BB sharing a single immediate
+  // to a hoisted move immediate with depending register moves.
+  // If register coalescing fails, then rematerialization
+  // eliminates the now dead hoisted def.
+  if (MRI.hasOneNonDBGUse(SrcReg))
+    return true;
+
+  return !Subtarget.canLowerToZeroCycleRegMove(CopyMI, DestReg, SrcReg) &&
+         !Subtarget.canLowerToZeroCycleRegZeroing(CopyMI, DestReg, SrcReg);
+}
+
 bool AArch64InstrInfo::isFalkorShiftExtFast(const MachineInstr &MI) {
   switch (MI.getOpcode()) {
   default:
@@ -5033,6 +5058,9 @@ void AArch64InstrInfo::copyGPRRegTuple(MachineBasicBlock &MBB,
   }
 }
 
+/// NOTE: must maintain consistency with
+/// `AArch64Subtarget::canLowerToZeroCycleRegMove` and
+/// `AArch64Subtarget::canLowerToZeroCycleRegZeroing`.
 void AArch64InstrInfo::copyPhysReg(MachineBasicBlock &MBB,
                                    MachineBasicBlock::iterator I,
                                    const DebugLoc &DL, Register DestReg,
