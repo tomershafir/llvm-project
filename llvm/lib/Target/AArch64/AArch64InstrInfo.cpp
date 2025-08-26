@@ -5079,6 +5079,13 @@ void AArch64InstrInfo::copyPhysReg(MachineBasicBlock &MBB,
       BuildMI(MBB, I, DL, get(AArch64::MOVZWi), DestReg)
           .addImm(0)
           .addImm(AArch64_AM::getShifterImm(AArch64_AM::LSL, 0));
+    } else if (SrcReg == AArch64::WZR && Subtarget.hasZeroCycleZeroingGPR64()) {
+      MCRegister DestRegX = TRI->getMatchingSuperReg(
+            DestReg, AArch64::sub_32, &AArch64::GPR64spRegClass);
+      assert(DestRegX.isValid() && "Destination super-reg not valid");
+      BuildMI(MBB, I, DL, get(AArch64::MOVZXi), DestRegX)
+          .addImm(0)
+          .addImm(AArch64_AM::getShifterImm(AArch64_AM::LSL, 0));
     } else {
       if (Subtarget.hasZeroCycleRegMoveGPR64() &&
           !Subtarget.hasZeroCycleRegMoveGPR32()) {
