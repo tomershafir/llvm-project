@@ -449,6 +449,19 @@ public:
     return true;
   }
 
+  /// Returns true if CopyMI should be considered for rematerialization,
+  /// based on target properties. Otherwise, returns false.
+  ///
+  /// Subtargets can override this method to classify rematerialization
+  /// candidates. Note that this cannot be defined in tablegen because it
+  /// is defined at the level of lowering rather than instructions.
+  virtual bool shouldReMaterialize(
+      const MachineFunction *MF, const MachineInstr &CopyMI,
+      const Register &DestReg, const Register &SrcReg,
+      const LiveIntervals *LIS) const {
+    return true;
+  }
+
   /// Re-issue the specified 'original' instruction at the
   /// specific location targeting a new destination register.
   /// The register in Orig->getOperand(0).getReg() will be substituted by

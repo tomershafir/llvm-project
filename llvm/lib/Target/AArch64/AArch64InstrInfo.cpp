@@ -1037,6 +1037,119 @@ bool AArch64InstrInfo::isAsCheapAsAMove(const MachineInstr &MI) const {
   }
 }
 
+bool AArch64InstrInfo::isRegInClass(const MachineInstr &MI, const Register &Reg,
+                                    const TargetRegisterClass *TRC) const {
+  if (Reg.isPhysical())
+    return TRC->contains(Reg);
+  const MachineRegisterInfo &MRI = MI.getMF()->getRegInfo();
+  return TRC->hasSubClassEq(MRI.getRegClass(Reg));
+}
+
+bool AArch64InstrInfo::canLowerToZeroCycleRegMove(
+    const MachineInstr &CopyMI, const Register &DestReg,
+    const Register &SrcReg) const {
+  // Using GPR32allRegClass and GPR64allRegClass to cover both virtual and 
+  // physical class assignements
+
+  if (isRegInClass(CopyMI, DestReg, &AArch64::GPR32allRegClass) &&
+      isRegInClass(CopyMI, SrcReg, &AArch64::GPR32allRegClass)) {
+    assert(DestReg != AArch64::WZR && "Copy into WZR doesnt make sense");
+    if (SrcReg == AArch64::WZR)
+      return false;
+    return Subtarget.hasZeroCycleRegMoveGPR32() || Subtarget.hasZeroCycleRegMoveGPR64();
+  }
+
+  if (isRegInClass(CopyMI, DestReg, &AArch64::GPR64allRegClass) &&
+      isRegInClass(CopyMI, SrcReg, &AArch64::GPR64allRegClass)) {
+    assert(DestReg != AArch64::XZR && "Copy into XZR doesnt make sense");
+    if (SrcReg == AArch64::XZR)
+      return false;
+    return Subtarget.hasZeroCycleRegMoveGPR64();
+  }
+
+  if (isRegInClass(CopyMI, DestReg, &AArch64::FPR128RegClass) &&
+      isRegInClass(CopyMI, SrcReg, &AArch64::FPR128RegClass))
+    return Subtarget.isNeonAvailable() && Subtarget.hasZeroCycleRegMoveFPR128();
+
+  if (isRegInClass(CopyMI, DestReg, &AArch64::FPR64RegClass) &&
+      isRegInClass(CopyMI, SrcReg, &AArch64::FPR64RegClass))
+    return Subtarget.hasZeroCycleRegMoveFPR64();
+
+  if (isRegInClass(CopyMI, DestReg, &AArch64::FPR32RegClass) &&
+      isRegInClass(CopyMI, SrcReg, &AArch64::FPR32RegClass))
+    return Subtarget.hasZeroCycleRegMoveFPR32() || Subtarget.hasZeroCycleRegMoveFPR64();
+
+  if (isRegInClass(CopyMI, DestReg, &AArch64::FPR16RegClass) &&
+      isRegInClass(CopyMI, SrcReg, &AArch64::FPR16RegClass))
+    return Subtarget.hasZeroCycleRegMoveFPR32() || Subtarget.hasZeroCycleRegMoveFPR64();
+
+  if (isRegInClass(CopyMI, DestReg, &AArch64::FPR8RegClass) &&
+      isRegInClass(CopyMI, SrcReg, &AArch64::FPR8RegClass))
+    return Subtarget.hasZeroCycleRegMoveFPR32() || Subtarget.hasZeroCycleRegMoveFPR64();
+
+  return false;
+}
+
+bool AArch64InstrInfo::canLowerToZeroCycleRegZeroing(
+    const MachineInstr &CopyMI, const Register &DestReg,
+    const Register &SrcReg) const {
+  // Using GPR32allRegClass and GPR64allRegClass to cover both virtual and 
+  // physical class assignements
+  
+  if (isRegInClass(CopyMI, DestReg, &AArch64::GPR32allRegClass) &&
+      isRegInClass(CopyMI, SrcReg, &AArch64::GPR32allRegClass)) {
+    assert(DestReg != AArch64::WZR && "Copy into WZR doesnt make sense");
+    return SrcReg == AArch64::WZR && (Subtarget.hasZeroCycleZeroingGPR32() || Subtarget.hasZeroCycleZeroingGPR64());
+  }
+
+  if (isRegInClass(CopyMI, DestReg, &AArch64::GPR64allRegClass) &&
+      isRegInClass(CopyMI, SrcReg, &AArch64::GPR64allRegClass)) {
+    assert(DestReg != AArch64::XZR && "Copy into XZR doesnt make sense");
+    return SrcReg == AArch64::XZR && Subtarget.hasZeroCycleZeroingGPR64();
+  }
+
+  if (AArch64::FPR64RegClass.contains(DestReg) &&
+      AArch64::GPR64allRegClass.contains(SrcReg)) {
+    if (SrcReg == AArch64::XZR)
+      return true;
+    return false;
+  }
+
+  if (AArch64::FPR32RegClass.contains(DestReg) &&
+      AArch64::GPR32RegClass.contains(SrcReg)) {
+    if (SrcReg == AArch64::WZR)
+      return true;
+    return false;
+  }
+
+  return false;
+}
+
+bool AArch64InstrInfo::shouldReMaterialize(
+    const MachineFunction *MF, const MachineInstr &CopyMI,
+    const Register &DestReg, const Register &SrcReg,
+    const LiveIntervals *LIS) const {
+  assert(!SrcReg.isPhysical() && "Cannot rematerialize a physical register");
+
+  const MachineRegisterInfo &MRI = MF->getRegInfo();
+
+  // SrcReg is virtual thus it is bound to a single value.
+  // Therefore, if there is exactly one non-debug use of
+  // that value, we should rematerialize.
+  //
+  // As a specific case, function calls can avoid
+  // redundant double copy. For example, SelectionDAG lowers
+  // multiple move immediate in a BB sharing a single immediate
+  // to a hoisted move immediate with depending register moves.
+  // If register coalescing fails, then rematerialization
+  // eliminates the now dead hoisted def.
+  if (MRI.hasOneNonDBGUse(SrcReg))
+    return true;
+
+  return !canLowerToZeroCycleRegMove(CopyMI, DestReg, SrcReg) &&
+         !canLowerToZeroCycleRegZeroing(CopyMI, DestReg, SrcReg);
+}
+
 bool AArch64InstrInfo::isFalkorShiftExtFast(const MachineInstr &MI) {
   switch (MI.getOpcode()) {
   default:
@@ -5056,6 +5169,9 @@ void AArch64InstrInfo::copyGPRRegTuple(MachineBasicBlock &MBB,
   }
 }
 
+/// NOTE: should be aligned to the logic in 
+/// `canLowerToZeroCycleRegMove` and
+/// `canLowerToZeroCycleRegZeroing`.
 void AArch64InstrInfo::copyPhysReg(MachineBasicBlock &MBB,
                                    MachineBasicBlock::iterator I,
                                    const DebugLoc &DL, Register DestReg,

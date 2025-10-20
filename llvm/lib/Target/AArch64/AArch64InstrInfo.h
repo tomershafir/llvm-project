@@ -193,6 +193,11 @@ public:
 
   bool isAsCheapAsAMove(const MachineInstr &MI) const override;
 
+  bool shouldReMaterialize(
+      const MachineFunction *MF, const MachineInstr &CopyMI,
+      const Register &DestReg, const Register &SrcReg,
+      const LiveIntervals *LIS) const override;
+
   bool isCoalescableExtInstr(const MachineInstr &MI, Register &SrcReg,
                              Register &DstReg, unsigned &SubIdx) const override;
 
@@ -604,6 +609,28 @@ private:
   std::optional<unsigned>
   canRemovePTestInstr(MachineInstr *PTest, MachineInstr *Mask,
                       MachineInstr *Pred, const MachineRegisterInfo *MRI) const;
+
+  /// Returns true if Reg is virtual and is assigned to,
+  /// or is physcial and is a member of, the TRC register class.
+  /// Otherwise, returns false.
+  bool isRegInClass(const MachineInstr &MI, const Register &Reg,
+                    const TargetRegisterClass *TRC) const;
+
+  /// Returns true if CopyMI can be lowered to a zero cycle register move.
+  /// Otherwise, returns false.
+  ///
+  /// NOTE: should be aligned to the logic in `copyPhysReg`.
+  bool canLowerToZeroCycleRegMove(const MachineInstr &CopyMI,
+                                          const Register &DestReg,
+                                          const Register &SrcReg) const;
+
+  /// Returns true if CopyMI can be lowered to a zero cycle register move.
+  /// Otherwise, returns false.
+  ///
+  /// NOTE: should be aligned to the logic in `copyPhysReg`.
+  bool canLowerToZeroCycleRegZeroing(const MachineInstr &CopyMI,
+                                             const Register &DestReg,
+                                             const Register &SrcReg) const;
 
   /// verifyInstruction - Perform target specific instruction verification.
   bool verifyInstruction(const MachineInstr &MI,

@@ -70,6 +70,9 @@ STATISTIC(numCrossRCs, "Number of cross class joins performed");
 STATISTIC(numCommutes, "Number of instruction commuting performed");
 STATISTIC(numExtends, "Number of copies extended");
 STATISTIC(NumReMats, "Number of instructions re-materialized");
+STATISTIC(NumReMatsPrevented,
+          "Number of instruction rematerialization prevented by "
+          "`shouldReMaterialize` hook");
 STATISTIC(NumInflated, "Number of register classes inflated");
 STATISTIC(NumLaneConflicts, "Number of dead lane conflicts tested");
 STATISTIC(NumLaneResolves, "Number of dead lane conflicts resolved");
@@ -1396,6 +1399,13 @@ bool RegisterCoalescer::reMaterializeDef(const CoalescerPair &CP,
 
   if (!VirtRegAuxInfo::allUsesAvailableAt(DefMI, CopyIdx, *LIS, *MRI, *TII))
     return false;
+
+  if (!TII->shouldReMaterialize(MF, *CopyMI, DstReg, SrcReg,
+                                             LIS)) {
+    LLVM_DEBUG(dbgs() << "Remat prevented: " << CopyIdx << "\t" << *CopyMI);
+    ++NumReMatsPrevented;
+    return false;
+  }
 
   DebugLoc DL = CopyMI->getDebugLoc();
   MachineBasicBlock *MBB = CopyMI->getParent();
