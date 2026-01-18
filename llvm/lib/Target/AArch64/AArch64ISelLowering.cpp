@@ -7223,6 +7223,13 @@ SDValue AArch64TargetLowering::LowerSTORE(SDValue Op,
   EVT VT = Value.getValueType();
   EVT MemVT = StoreNode->getMemoryVT();
 
+  // Don't lower nontemporal stores when optimizing for size, because currently
+  // all of the nontemporal stores lowering cannot improve code size.
+  if (StoreNode->isNonTemporal() && !DAG.shouldOptForSize()) {
+    if (auto MaybeSTNP = LowerNTStore(StoreNode, VT, MemVT, Dl, DAG))
+      return MaybeSTNP;
+  }
+
   if (VT.isVector()) {
     if (useSVEForFixedLengthVectorVT(
             VT,
@@ -7241,33 +7248,6 @@ SDValue AArch64TargetLowering::LowerSTORE(SDValue Op,
     if (StoreNode->isTruncatingStore() && VT == MVT::v4i16 &&
         MemVT == MVT::v4i8) {
       return LowerTruncateVectorStore(Dl, StoreNode, VT, MemVT, DAG);
-    }
-    // 256 bit non-temporal stores can be lowered to STNP. Do this as part of
-    // the custom lowering, as there are no un-paired non-temporal stores and
-    // legalization will break up 256 bit inputs.
-    ElementCount EC = MemVT.getVectorElementCount();
-    if (StoreNode->isNonTemporal() && MemVT.getSizeInBits() == 256u &&
-        EC.isKnownEven() && DAG.getDataLayout().isLittleEndian() &&
-        !DAG.shouldOptForSize() &&
-        (MemVT.getScalarSizeInBits() == 8u ||
-         MemVT.getScalarSizeInBits() == 16u ||
-         MemVT.getScalarSizeInBits() == 32u ||
-         MemVT.getScalarSizeInBits() == 64u)) {
-      SDValue Lo =
-          DAG.getNode(ISD::EXTRACT_SUBVECTOR, Dl,
-                      MemVT.getHalfNumVectorElementsVT(*DAG.getContext()),
-                      StoreNode->getValue(), DAG.getConstant(0, Dl, MVT::i64));
-      SDValue Hi =
-          DAG.getNode(ISD::EXTRACT_SUBVECTOR, Dl,
-                      MemVT.getHalfNumVectorElementsVT(*DAG.getContext()),
-                      StoreNode->getValue(),
-                      DAG.getConstant(EC.getKnownMinValue() / 2, Dl, MVT::i64));
-      SDValue Result = DAG.getMemIntrinsicNode(
-          AArch64ISD::STNP, Dl, DAG.getVTList(MVT::Other),
-          {StoreNode->getChain(), DAG.getBitcast(MVT::v2i64, Lo),
-           DAG.getBitcast(MVT::v2i64, Hi), StoreNode->getBasePtr()},
-          StoreNode->getMemoryVT(), StoreNode->getMemOperand());
-      return Result;
     }
   } else if (MemVT == MVT::i128 && StoreNode->isVolatile()) {
     return LowerStore128(Op, DAG);
@@ -7288,6 +7268,47 @@ SDValue AArch64TargetLowering::LowerSTORE(SDValue Op,
     return Chain;
   }
 
+  return SDValue();
+}
+
+// Lower non-temporal stores that would otherwise be broken by legalization.
+SDValue AArch64TargetLowering::LowerNTStore(StoreSDNode *StoreNode, EVT VT,
+                                            EVT MemVT, const SDLoc &DL,
+                                            SelectionDAG &DAG) const {
+  assert(StoreNode && "Expected a store operation");
+  assert(StoreNode->isNonTemporal() && "Expected a non-temporal store");
+
+  // Currently we only support NT stores lowering for little-endian targets.
+  if (!Subtarget->isLittleEndian())
+    return SDValue();
+
+  if (VT.isVector()) {
+    // 256 bit non-temporal stores can be lowered to STNP. Do this as part of
+    // the custom lowering, as there are no un-paired non-temporal stores and
+    // legalization will break up 256 bit inputs.
+    ElementCount EC = MemVT.getVectorElementCount();
+    if (VT.isVector() && MemVT.getSizeInBits() == 256u && EC.isKnownEven() &&
+        (MemVT.getScalarSizeInBits() == 8u ||
+         MemVT.getScalarSizeInBits() == 16u ||
+         MemVT.getScalarSizeInBits() == 32u ||
+         MemVT.getScalarSizeInBits() == 64u)) {
+      SDValue Lo =
+          DAG.getNode(ISD::EXTRACT_SUBVECTOR, DL,
+                      MemVT.getHalfNumVectorElementsVT(*DAG.getContext()),
+                      StoreNode->getValue(), DAG.getConstant(0, DL, MVT::i64));
+      SDValue Hi =
+          DAG.getNode(ISD::EXTRACT_SUBVECTOR, DL,
+                      MemVT.getHalfNumVectorElementsVT(*DAG.getContext()),
+                      StoreNode->getValue(),
+                      DAG.getConstant(EC.getKnownMinValue() / 2, DL, MVT::i64));
+      SDValue Result = DAG.getMemIntrinsicNode(
+          AArch64ISD::STNP, DL, DAG.getVTList(MVT::Other),
+          {StoreNode->getChain(), DAG.getBitcast(MVT::v2i64, Lo),
+           DAG.getBitcast(MVT::v2i64, Hi), StoreNode->getBasePtr()},
+          StoreNode->getMemoryVT(), StoreNode->getMemOperand());
+      return Result;
+    }
+  }
   return SDValue();
 }
 
