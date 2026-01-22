@@ -391,7 +391,8 @@ public:
     return false;
   }
 
-  std::optional<bool> isLegalNTStoreLoad(Type *DataType, Align Alignment) const {
+  std::optional<bool> shouldVectorizeNTStoreLoad(Type *DataType,
+                                                 Align Alignment) const {
     // NOTE: The logic below is mostly geared towards LV, which calls it with
     //       vectors with 2 elements. We might want to improve that, if other
     //       users show up.
@@ -408,21 +409,21 @@ public:
     return std::nullopt;
   }
 
-  bool isLegalNTStore(Type *DataType, Align Alignment) const override {
+  bool shouldVectorizeNTStore(Type *DataType, Align Alignment) const override {
     // Currently we only support NT stores lowering for little-endian targets.
     //
     // Coordinated with STNP constraints in
     // `llvm/lib/Target/AArch64/AArch64InstrInfo.td` and
-    // `AArch64TargetLowering::LowerNTStore`
+    // `LowerNTStore`
     if (!ST->isLittleEndian())
       return false;
-    if (auto Result = isLegalNTStoreLoad(DataType, Alignment))
+    if (auto Result = shouldVectorizeNTStoreLoad(DataType, Alignment))
       return *Result;
     // Fallback to target independent logic
-    return BaseT::isLegalNTStore(DataType, Alignment);
+    return BaseT::shouldVectorizeNTStore(DataType, Alignment);
   }
 
-  bool isLegalNTLoad(Type *DataType, Align Alignment) const override {
+  bool shouldVectorizeNTLoad(Type *DataType, Align Alignment) const override {
     // Currently we only support NT loads lowering for little-endian targets.
     //
     // Coordinated with LDNP constraints in
@@ -430,10 +431,10 @@ public:
     // `AArch64TargetLowering::ReplaceNodeResults`
     if (!ST->isLittleEndian())
       return false;
-    if (auto Result = isLegalNTStoreLoad(DataType, Alignment))
+    if (auto Result = shouldVectorizeNTStoreLoad(DataType, Alignment))
       return *Result;
     // Fallback to target independent logic
-    return BaseT::isLegalNTLoad(DataType, Alignment);
+    return BaseT::shouldVectorizeNTLoad(DataType, Alignment);
   }
 
   InstructionCost getPartialReductionCost(

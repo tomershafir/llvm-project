@@ -3780,7 +3780,7 @@ def : Pat<(AArch64ldp (am_indexed7s64 GPR64sp:$Rn, simm7s8:$offset)),
 // Currently we only support NT loads lowering for little-endian targets.
 //
 // Coordinated with LDNP constraints in `AArch64TargetLowering::ReplaceNodeResults`
-// and `AArch64TTIImpl::isLegalNTLoad`.
+// and `AArch64TargetLowering::isLegalNTLoad`.
 let Predicates = [IsLE] in {
   def : Pat<(AArch64ldnp(am_indexed7s128 GPR64sp:$Rn, simm7s16:$offset)),
             (LDNPQi GPR64sp:$Rn, simm7s16:$offset)>;
@@ -10658,8 +10658,8 @@ def : Pat<(i64 (int_aarch64_neon_urshl (i64 FPR64:$Rn), (i64 FPR64:$Rm))),
 //
 // Currently we only support NT stores lowering for little-endian targets.
 //
-// Coordinated with STNP constraints in `AArch64TargetLowering::LowerNTStore`
-// and `AArch64TTIImpl::isLegalNTStore`.
+// Coordinated with STNP constraints in `LowerNTStore`
+// and `AArch64TargetLowering::isLegalNTStore`.
 //
 // Also, don't lower nontemporal stores when optimizing for size, because
 // currently all of the nontemporal stores lowering cannot improve code size.

@@ -884,10 +884,13 @@ public:
   isLegalMaskedLoad(Type *DataType, Align Alignment, unsigned AddressSpace,
                     MaskKind MaskKind = VariableOrConstantMask) const;
 
-  /// Return true if the target supports nontemporal store.
-  LLVM_ABI bool isLegalNTStore(Type *DataType, Align Alignment) const;
-  /// Return true if the target supports nontemporal load.
-  LLVM_ABI bool isLegalNTLoad(Type *DataType, Align Alignment) const;
+  /// Returns true if the vectorization should try vectorize nontemporal stores.
+  /// Currently only used by the loop vectorizer.
+  LLVM_ABI bool shouldVectorizeNTStore(Type *DataType, Align Alignment) const;
+
+  /// Returns true if the vectorization should try vectorize nontemporal loads.
+  /// Currently only used by the loop vectorizer.
+  LLVM_ABI bool shouldVectorizeNTLoad(Type *DataType, Align Alignment) const;
 
   /// \Returns true if the target supports broadcasting a load to a vector of
   /// type <NumElements x ElementTy>.

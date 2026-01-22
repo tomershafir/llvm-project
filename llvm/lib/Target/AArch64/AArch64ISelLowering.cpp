@@ -7272,6 +7272,10 @@ SDValue AArch64TargetLowering::LowerSTORE(SDValue Op,
 }
 
 // Lower non-temporal stores that would otherwise be broken by legalization.
+//
+// Coordinated with STNP constraints in
+// `llvm/lib/Target/AArch64/AArch64InstrInfo.td`
+// and `AArch64TargetLowering::isLegalNTStore`
 SDValue AArch64TargetLowering::LowerNTStore(StoreSDNode *StoreNode, EVT VT,
                                             EVT MemVT, const SDLoc &DL,
                                             SelectionDAG &DAG) const {
@@ -7279,10 +7283,6 @@ SDValue AArch64TargetLowering::LowerNTStore(StoreSDNode *StoreNode, EVT VT,
   assert(StoreNode->isNonTemporal() && "Expected a non-temporal store");
 
   // Currently we only support NT stores lowering for little-endian targets.
-  //
-  // Coordinated with STNP constraints in
-  // `llvm/lib/Target/AArch64/AArch64InstrInfo.td`
-  // and `AArch64TTIImpl::isLegalNTStore`
   if (!Subtarget->isLittleEndian())
     return SDValue();
 
@@ -29445,7 +29445,7 @@ void AArch64TargetLowering::ReplaceNodeResults(
     //
     // Coordinated with LDNP constraints in
     // `llvm/lib/Target/AArch64/AArch64InstrInfo.td`
-    // and `AArch64TTIImpl::isLegalNTLoad`.
+    // and `AArch64TargetLowering::isLegalNTLoad`.
     if (LoadNode->isNonTemporal() && Subtarget->isLittleEndian() &&
         MemVT.getSizeInBits() == 256u &&
         (MemVT.getScalarSizeInBits() == 8u ||

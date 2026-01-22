@@ -479,13 +479,14 @@ bool TargetTransformInfo::isLegalMaskedLoad(Type *DataType, Align Alignment,
                                     MaskKind);
 }
 
-bool TargetTransformInfo::isLegalNTStore(Type *DataType,
-                                         Align Alignment) const {
-  return TTIImpl->isLegalNTStore(DataType, Alignment);
+bool TargetTransformInfo::shouldVectorizeNTStore(Type *DataType,
+                                                       Align Alignment) const {
+  return TTIImpl->shouldVectorizeNTStore(DataType, Alignment);
 }
 
-bool TargetTransformInfo::isLegalNTLoad(Type *DataType, Align Alignment) const {
-  return TTIImpl->isLegalNTLoad(DataType, Alignment);
+bool TargetTransformInfo::shouldVectorizeNTLoad(Type *DataType,
+                                                      Align Alignment) const {
+  return TTIImpl->shouldVectorizeNTLoad(DataType, Alignment);
 }
 
 bool TargetTransformInfo::isLegalBroadcastLoad(Type *ElementTy,
