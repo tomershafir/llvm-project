@@ -18495,6 +18495,30 @@ bool AArch64TargetLowering::lowerInterleavedStore(Instruction *Store,
                             BaseAddr, DL)))
     return false;
 
+  // Conditionally skip nontemporal stores, because in that case we should
+  // prioritize emitting non-temporal store instructions, but AArch64 doesn't
+  // have non-temporal interleaved stores.
+  //
+  // Currently, STNP lowering can only either keep or increase code size,
+  // thus we predicate it to not apply when optimizing for code size.
+  //
+  // The check is conservative:
+  //
+  // - Don't skip if the interleaving factor is greater than 2, as the shuffling
+  // overhead becomes higher.
+  // - Don't skip if the store value types which are not directly legal. They
+  // may theoratically be split by legalization and lowered to STNPs, but they
+  // can also match only partially in the worst case and actually emit temporal
+  // stores.
+  //
+  // We may need to revisit this heuristic using an approximated cost model,
+  // also for higher factors.
+  Function *F = SI->getFunction();
+  if (Factor == 2 && SI->hasMetadata(LLVMContext::MD_nontemporal) &&
+      !F->hasOptSize() && !F->hasMinSize() &&
+      isLegalNTStore(SI->getValueOperand()->getType(), SI->getAlign(), DL))
+    return false;
+
   Type *PtrTy = SI->getPointerOperandType();
   Type *PredTy = VectorType::get(Type::getInt1Ty(STVTy->getContext()),
                                  STVTy->getElementCount());
@@ -18928,6 +18952,43 @@ bool AArch64TargetLowering::isLegalAddressingMode(const DataLayout &DL,
 
   return Subtarget->getInstrInfo()->isLegalAddressingMode(NumBytes, AM.BaseOffs,
                                                           AM.Scale);
+}
+
+// Coordinated with STNP handling in
+// `llvm/lib/Target/AArch64/AArch64InstrInfo.td` and
+// `LowerNTStore`
+bool AArch64TargetLowering::isLegalNTStore(Type *DataType, Align Alignment,
+                                           const DataLayout &DL) const {
+  // Currently we only support NT stores lowering for little-endian targets.
+  if (!DL.isLittleEndian())
+    return false;
+
+  // The backend can lower to STNPWi in this case
+  if (DataType->isIntegerTy(64))
+    return true;
+
+  if (auto *DataTypeTy = dyn_cast<FixedVectorType>(DataType)) {
+    unsigned NumElements = DataTypeTy->getNumElements();
+    unsigned EltSizeBits = DataTypeTy->getElementType()->getScalarSizeInBits();
+    unsigned TotalSizeBits =
+        DataTypeTy->getPrimitiveSizeInBits().getFixedValue();
+
+    // Currently only power-of-2 vectors are supported
+    if (!isPowerOf2_64(NumElements) || !isPowerOf2_64(EltSizeBits))
+      return false;
+
+    // The backend can lower to STNPSi or STNPDi in this case
+    // via `llvm/lib/Target/AArch64/AArch64InstrInfo.td`
+    if (TotalSizeBits == 64u || TotalSizeBits == 128u)
+      return true;
+
+    // The backend can lower to STNPQi in this case via `LowerNTStore`
+    if (TotalSizeBits == 256u && (EltSizeBits == 8u || EltSizeBits == 16u ||
+                                  EltSizeBits == 32u || EltSizeBits == 64u))
+      return true;
+  }
+
+  return false;
 }
 
 // Check whether the 2 offsets belong to the same imm24 range, and their high
