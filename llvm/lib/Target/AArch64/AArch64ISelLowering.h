@@ -269,6 +269,9 @@ public:
                              unsigned AS,
                              Instruction *I = nullptr) const override;
 
+  bool isLegalNTStore(Type *DataType, Align Alignment,
+                      const DataLayout &DL) const override;
+
   int64_t getPreferredLargeGEPBaseOffset(int64_t MinOffset,
                                          int64_t MaxOffset) const override;
 
