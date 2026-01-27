@@ -396,8 +396,8 @@ public:
     return false;
   }
 
-  std::optional<bool> isLegalNTStoreLoad(Type *DataType,
-                                         Align Alignment) const {
+  std::optional<bool> shouldVectorizeNTStoreLoad(Type *DataType,
+                                                 Align Alignment) const {
     // Currently we only support NT load and store lowering for little-endian
     // targets.
     //
@@ -423,18 +423,18 @@ public:
     return std::nullopt;
   }
 
-  bool isLegalNTStore(Type *DataType, Align Alignment) const override {
-    if (auto Result = isLegalNTStoreLoad(DataType, Alignment))
+  bool shouldVectorizeNTStore(Type *DataType, Align Alignment) const override {
+    if (auto Result = shouldVectorizeNTStoreLoad(DataType, Alignment))
       return *Result;
     // Fallback to target independent logic
-    return BaseT::isLegalNTStore(DataType, Alignment);
+    return BaseT::shouldVectorizeNTStore(DataType, Alignment);
   }
 
-  bool isLegalNTLoad(Type *DataType, Align Alignment) const override {
-    if (auto Result = isLegalNTStoreLoad(DataType, Alignment))
+  bool shouldVectorizeNTLoad(Type *DataType, Align Alignment) const override {
+    if (auto Result = shouldVectorizeNTStoreLoad(DataType, Alignment))
       return *Result;
     // Fallback to target independent logic
-    return BaseT::isLegalNTLoad(DataType, Alignment);
+    return BaseT::shouldVectorizeNTLoad(DataType, Alignment);
   }
 
   InstructionCost getPartialReductionCost(

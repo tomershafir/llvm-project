@@ -362,18 +362,12 @@ public:
     return false;
   }
 
-  virtual bool isLegalNTStore(Type *DataType, Align Alignment) const {
-    // By default, assume nontemporal memory stores are available for stores
-    // that are aligned and have a size that is a power of 2.
-    unsigned DataSize = DL.getTypeStoreSize(DataType);
-    return Alignment >= DataSize && isPowerOf2_32(DataSize);
+  virtual bool shouldVectorizeNTStore(Type *DataType, Align Alignment) const {
+    return false;
   }
 
-  virtual bool isLegalNTLoad(Type *DataType, Align Alignment) const {
-    // By default, assume nontemporal memory loads are available for loads that
-    // are aligned and have a size that is a power of 2.
-    unsigned DataSize = DL.getTypeStoreSize(DataType);
-    return Alignment >= DataSize && isPowerOf2_32(DataSize);
+  virtual bool shouldVectorizeNTLoad(Type *DataType, Align Alignment) const {
+    return false;
   }
 
   virtual bool isLegalBroadcastLoad(Type *ElementTy,
