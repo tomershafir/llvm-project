@@ -179,15 +179,17 @@ static FeatureBitset getFeatures(MCSubtargetInfo &STI, StringRef CPU,
 
   assert(llvm::is_sorted(ProcDesc) && "CPU table is not sorted");
   assert(llvm::is_sorted(ProcFeatures) && "CPU features table is not sorted");
-  // Resulting bits
+
+  // Return empty early if this is a CPU help print call, which should not mix
+  // actual feature collection
+  if (CPU == "help") {
+    Help(ProcNames, ProcFeatures);
+    return FeatureBitset();
+  }
+
   FeatureBitset Bits;
 
-  // Check if help is needed
-  if (CPU == "help")
-    Help(ProcNames, ProcFeatures);
-
-  // Find CPU entry if CPU name is specified.
-  else if (!CPU.empty()) {
+  if (!CPU.empty()) {
     const SubtargetSubTypeKV *CPUEntry = Find(CPU, ProcDesc);
 
     // If there is a match
@@ -215,13 +217,18 @@ static FeatureBitset getFeatures(MCSubtargetInfo &STI, StringRef CPU,
 
   // Iterate through each feature
   for (const std::string &Feature : Features.getFeatures()) {
-    // Check for help
-    if (Feature == "+help")
+    // Return empty early if this is a features help print call, which should
+    // not mix actual feature collection
+    if (Feature == "+help") {
       Help(ProcNames, ProcFeatures);
-    else if (Feature == "+cpuhelp")
+      return FeatureBitset();
+    }
+    if (Feature == "+cpuhelp") {
       cpuHelp(ProcNames);
-    else
-      ApplyFeatureFlag(Bits, Feature, ProcFeatures);
+      return FeatureBitset();
+    }
+
+    ApplyFeatureFlag(Bits, Feature, ProcFeatures);
   }
 
   return Bits;
