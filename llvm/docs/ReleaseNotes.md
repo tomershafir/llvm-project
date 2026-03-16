@@ -197,6 +197,7 @@ Changes to the LLVM tools
 * `llvm-objcopy` no longer corrupts the symbol table when `--update-section` is called for ELF files.
 * `FileCheck` option `-check-prefix` now accepts a comma-separated list of
   prefixes, making it an alias of the existing `-check-prefixes` option.
+* `llvm-objdump` no longer dumps actual output when `--mcpu=help` or `--mattr=help` are passed
 
 Changes to LLDB
 ---------------

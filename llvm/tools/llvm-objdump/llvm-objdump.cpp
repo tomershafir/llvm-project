@@ -3961,8 +3961,7 @@ int llvm_objdump_main(int argc, char **argv, const llvm::ToolContext &) {
 
   if (PrintCpuHelp) {
     mcpuHelp();
-    if (!ShouldDump)
-      return EXIT_SUCCESS;
+    return EXIT_SUCCESS;
   }
 
   DisasmSymbolSet.insert_range(DisassembleSymbols);

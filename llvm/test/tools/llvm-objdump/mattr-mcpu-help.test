@@ -1,32 +1,32 @@
 # REQUIRES: x86-registered-target
 
 # RUN: yaml2obj --docnum=1 %s -o %t
+# RUN: llvm-objdump --mattr=help %t 2>&1 \
+# RUN:   | FileCheck %s --check-prefixes=CHECK
+# RUN: llvm-objdump --mcpu=help %t 2>&1 \
+# RUN:   | FileCheck %s --check-prefixes=CHECK
+
+## The help message should be printed without disassembly.
 # RUN: llvm-objdump -d %t --mattr=help 2>&1 \
-# RUN:   | FileCheck %s --check-prefixes=CHECK,CHECK-DISASSEMBLE
+# RUN:   | FileCheck %s --check-prefixes=CHECK
 # RUN: llvm-objdump -d %t --mcpu=help 2>&1 \
-# RUN:   | FileCheck %s --check-prefixes=CHECK,CHECK-DISASSEMBLE
+# RUN:   | FileCheck %s --check-prefixes=CHECK
+
+## We also dont handle other options.
+# RUN: llvm-objdump --mattr=help --section-headers %t 2>&1 \
+# RUN:   | FileCheck %s --check-prefixes=CHECK
+# RUN: llvm-objdump --mcpu=help --section-headers %t 2>&1 \
+# RUN:   | FileCheck %s --check-prefixes=CHECK
 
 # CHECK: Available CPUs for this target:
 # CHECK: Available features for this target:
-## To check we still disassemble the file:
-# CHECK-DISASSEMBLE: file format elf64-x86-64
 
-## The help message can be printed without -d.
-# RUN: llvm-objdump --mattr=help %t 2>&1 \
-# RUN:   | FileCheck %s --check-prefixes=CHECK,CHECK-NO-DISASSEMBLE
-# RUN: llvm-objdump --mcpu=help %t 2>&1 \
-# RUN:   | FileCheck %s --check-prefixes=CHECK,CHECK-NO-DISASSEMBLE
+## To check we dont disassemble the file:
+# CHECK-NOT: file format elf64-x86-64
 
-# CHECK-NO-DISASSEMBLE-NOT: file format elf64-x86-64
-
-## We still handle other options.
-# RUN: llvm-objdump --mattr=help --section-headers %t 2>&1 \
-# RUN:   | FileCheck %s --check-prefixes=CHECK,CHECK-SECTION-HEADERS
-# RUN: llvm-objdump --mcpu=help --section-headers %t 2>&1 \
-# RUN:   | FileCheck %s --check-prefixes=CHECK,CHECK-SECTION-HEADERS
-
-# CHECK-SECTION-HEADERS: Sections:
-# CHECK-SECTION-HEADERS: Idx Name               Size     VMA              Type
+## To check we dont dump sections:
+# CHECK-NOT: Sections:
+# CHECK-NOT: Idx Name               Size     VMA              Type
 
 ## We report an error when we can't infer the triple because we don't have --triple or an input object (including a.out).
 # RUN: not llvm-objdump --mattr=help 2>&1 \
