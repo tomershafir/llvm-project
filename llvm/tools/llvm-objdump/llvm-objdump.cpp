@@ -3940,7 +3940,10 @@ int llvm_objdump_main(int argc, char **argv, const llvm::ToolContext &) {
       !DisassembleSymbols.empty())
     Disassemble = true;
 
-  const bool PrintCpuHelp = (MCPU == "help" || is_contained(MAttrs, "help"));
+  if ((MCPU == "help" || is_contained(MAttrs, "help"))) {
+    mcpuHelp();
+    return EXIT_SUCCESS;
+  }
 
   const bool ShouldDump =
       ArchiveHeaders || Disassemble || DwarfDumpType != DIDT_Null ||
@@ -3954,14 +3957,9 @@ int llvm_objdump_main(int argc, char **argv, const llvm::ToolContext &) {
         InfoPlist || LazyBind || LinkOptHints || ObjcMetaData || Rebase ||
         Rpaths || UniversalHeaders || WeakBind || !FilterSections.empty()));
 
-  if (!ShouldDump && !PrintCpuHelp) {
+  if (!ShouldDump) {
     T->printHelp(ToolName);
     return 2;
-  }
-
-  if (PrintCpuHelp) {
-    mcpuHelp();
-    return EXIT_SUCCESS;
   }
 
   DisasmSymbolSet.insert_range(DisassembleSymbols);
