@@ -803,10 +803,7 @@ codegen::createTargetMachineForTriple(StringRef TargetTriple,
       codegen::InitTargetOptionsFromCodeGenFlags(TheTriple),
       codegen::getExplicitRelocModel(), codegen::getExplicitCodeModel(),
       OptLevel);
-  if (!Target)
-    return createStringError(inconvertibleErrorCode(),
-                             Twine("could not allocate target machine for ") +
-                                 TargetTriple);
+  assert(Target && "Could not allocate target machine!");
   return std::unique_ptr<TargetMachine>(Target);
 }
 
