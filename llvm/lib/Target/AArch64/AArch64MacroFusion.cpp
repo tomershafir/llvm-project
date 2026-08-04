@@ -27,6 +27,7 @@ STATISTIC(NumFusedAES, "Number of AES fusions");
 STATISTIC(NumFusedCryptoEOR, "Number of crypto-EOR fusions");
 STATISTIC(NumFusedAdrpAdd, "Number of ADRP-ADD fusions");
 STATISTIC(NumFusedLiterals, "Number of literal-generation fusions");
+STATISTIC(NumFusedMovzMovk, "Number of MOVZ-MOVK fusions");
 STATISTIC(NumFusedAddress, "Number of address-generation load/store fusions");
 STATISTIC(NumFusedCmpCSel, "Number of compare-CSEL fusions");
 STATISTIC(NumFusedFCmpFCSel, "Number of FP-compare-FCSEL fusions");
@@ -249,6 +250,31 @@ static bool isLiteralsPair(const MachineInstr *FirstMI,
       (SecondMI.getOpcode() == AArch64::MOVKXi &&
        SecondMI.getOperand(3).getImm() == 48))
     return true;
+
+  return false;
+}
+
+/// MOVZ + MOVK.
+static bool isMovzMovkPair(const MachineInstr *FirstMI,
+                           const MachineInstr &SecondMI,
+                           const TargetRegisterInfo *TRI) {
+  switch (SecondMI.getOpcode()) {
+  case AArch64::MOVKWi:
+  case AArch64::MOVKXi:
+    // Assume the 1st instr to be a wildcard if it is unspecified.
+    if (FirstMI == nullptr)
+      return true;
+
+    switch (FirstMI->getOpcode()) {
+    case AArch64::MOVZWi:
+    case AArch64::MOVZXi:
+      // RAW dependency between MOVZ and MOVK implies WAW architecturally
+      // because both have a single register operand
+      assert(mayHaveWAWDependency(*FirstMI, SecondMI, TRI) &&
+             "should have a WAW dependency");
+      return true;
+    }
+  }
 
   return false;
 }
@@ -720,6 +746,10 @@ static bool shouldScheduleAdjacent(const TargetInstrInfo &TII,
   }
   if (ST.hasFuseLiterals() && isLiteralsPair(FirstMI, SecondMI)) {
     ++NumFusedLiterals;
+    return true;
+  }
+  if (ST.hasFuseMovzMovk() && isMovzMovkPair(FirstMI, SecondMI, TRI)) {
+    ++NumFusedMovzMovk;
     return true;
   }
   if (ST.hasFuseAddress() && isAddressLdStPair(FirstMI, SecondMI)) {

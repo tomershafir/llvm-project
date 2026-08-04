@@ -265,7 +265,8 @@ public:
     return hasArithmeticBccFusion() || hasArithmeticCbzFusion() ||
            hasFuseAES() || hasFuseArithmeticLogic() || hasFuseCmpCSel() ||
            hasFuseFCmpFCSel() || hasFuseCmpCSet() || hasFuseAdrpAdd() ||
-           hasFuseLiterals() || hasFuseAppleSMECompute() || hasFuseFMinFMax();
+           hasFuseLiterals() || hasFuseMovzMovk() || hasFuseAppleSMECompute() ||
+           hasFuseFMinFMax();
   }
 
   unsigned getEpilogueVectorizationMinVF() const {
